@@ -1,0 +1,427 @@
+-- LoL 1.11 - Complete script: Silent Aim + Ragebot + Unlock All Skins (Roblox Rivals)
+-- Mobile/Delta supported with full ragebot (aimbot + triggerbot + anti-aim)
+
+-- ==================== Environment Detection ====================
+local is_mobile = false
+local is_delta = false
+
+if getexecutorname then
+    local exec_name = getexecutorname()
+    if exec_name:lower():find("delta") then
+        is_delta = true
+        is_mobile = true
+    elseif exec_name:lower():find("arceus") or exec_name:lower():find("hydrogen") then
+        is_mobile = true
+    end
+end
+
+if game and game:GetService("UserInputService") then
+    local uis = game:GetService("UserInputService")
+    if uis.TouchEnabled then is_mobile = true end
+end
+
+-- ==================== Global Config ====================
+_G.LoL = _G.LoL or {}
+_G.LoL.enabled = true
+_G.LoL.unlock = false
+_G.LoL.fov = 90
+_G.LoL.smooth = 0.3
+_G.LoL.triggerbot = false
+_G.LoL.antiaim = false
+_G.LoL.rage = false
+_G.LoL.target_priority = "closest" -- closest, lowest_hp, highest_hp
+_G.LoL.hitbox = "head" -- head, torso, random
+
+-- ==================== Mobile GUI ====================
+local function create_mobile_gui()
+    local screen_gui = Instance.new("ScreenGui")
+    screen_gui.Name = "LoL_1.11_GUI"
+    screen_gui.ResetOnSpawn = false
+    screen_gui.Parent = game:GetService("CoreGui")
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 320, 0, 420)
+    frame.Position = UDim2.new(0.5, -160, 0.5, -210)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    frame.BackgroundTransparency = 0.15
+    frame.BorderSizePixel = 0
+    frame.Parent = screen_gui
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 35)
+    title.Text = "LoL 1.11 [RAGEBOT]"
+    title.TextColor3 = Color3.fromRGB(255, 50, 50)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 20
+    title.Parent = frame
+
+    local function add_toggle(label, var_name, default, y_offset)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.9, 0, 0, 36)
+        btn.Position = UDim2.new(0.05, 0, 0, y_offset)
+        _G.LoL[var_name] = default
+        btn.Text = label .. ": " .. tostring(default)
+        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 14
+        btn.Parent = frame
+        btn.MouseButton1Click:Connect(function()
+            _G.LoL[var_name] = not _G.LoL[var_name]
+            btn.Text = label .. ": " .. tostring(_G.LoL[var_name])
+        end)
+        return btn
+    end
+
+    local function add_cycle(label, var_name, options, default, y_offset)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.9, 0, 0, 36)
+        btn.Position = UDim2.new(0.05, 0, 0, y_offset)
+        _G.LoL[var_name] = default
+        local idx = 1
+        for i, v in ipairs(options) do if v == default then idx = i break end end
+        btn.Text = label .. ": " .. tostring(default)
+        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 14
+        btn.Parent = frame
+        btn.MouseButton1Click:Connect(function()
+            idx = idx % #options + 1
+            _G.LoL[var_name] = options[idx]
+            btn.Text = label .. ": " .. tostring(options[idx])
+        end)
+        return btn
+    end
+
+    local y = 45
+    add_toggle("Silent Aim", "enabled", true, y); y = y + 45
+    add_toggle("Triggerbot", "triggerbot", false, y); y = y + 45
+    add_toggle("Anti-Aim", "antiaim", false, y); y = y + 45
+    add_toggle("Rage Mode", "rage", false, y); y = y + 45
+    add_toggle("Unlock Skins", "unlock", false, y); y = y + 45
+
+    add_cycle("Priority", "target_priority", {"closest", "lowest_hp", "highest_hp"}, "closest", y); y = y + 45
+    add_cycle("Hitbox", "hitbox", {"head", "torso", "random"}, "head", y); y = y + 45
+
+    -- FOV slider cycle
+    local fov_btn = Instance.new("TextButton")
+    fov_btn.Size = UDim2.new(0.9, 0, 0, 36)
+    fov_btn.Position = UDim2.new(0.05, 0, 0, y)
+    fov_btn.Text = "FOV: " .. tostring(_G.LoL.fov)
+    fov_btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    fov_btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fov_btn.Font = Enum.Font.Gotham
+    fov_btn.TextSize = 14
+    fov_btn.Parent = frame
+    fov_btn.MouseButton1Click:Connect(function()
+        local cur = _G.LoL.fov + 15
+        if cur > 180 then cur = 15 end
+        _G.LoL.fov = cur
+        fov_btn.Text = "FOV: " .. tostring(cur)
+    end)
+    y = y + 45
+
+    -- Smooth slider
+    local smooth_btn = Instance.new("TextButton")
+    smooth_btn.Size = UDim2.new(0.9, 0, 0, 36)
+    smooth_btn.Position = UDim2.new(0.05, 0, 0, y)
+    smooth_btn.Text = "Smooth: " .. tostring(_G.LoL.smooth)
+    smooth_btn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    smooth_btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    smooth_btn.Font = Enum.Font.Gotham
+    smooth_btn.TextSize = 14
+    smooth_btn.Parent = frame
+    smooth_btn.MouseButton1Click:Connect(function()
+        local cur = _G.LoL.smooth + 0.1
+        if cur > 1.0 then cur = 0.1 end
+        _G.LoL.smooth = math.round(cur * 10) / 10
+        smooth_btn.Text = "Smooth: " .. tostring(_G.LoL.smooth)
+    end)
+    y = y + 45
+
+    -- Status
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(1, 0, 0, 30)
+    status.Position = UDim2.new(0, 0, 0, y)
+    status.Text = "Status: Ready"
+    status.TextColor3 = Color3.fromRGB(200, 200, 200)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 12
+    status.Parent = frame
+
+    local unlock_status = Instance.new("TextLabel")
+    unlock_status.Size = UDim2.new(1, 0, 0, 30)
+    unlock_status.Position = UDim2.new(0, 0, 0, y + 30)
+    unlock_status.Text = "Unlock: Inactive"
+    unlock_status.TextColor3 = Color3.fromRGB(200, 200, 200)
+    unlock_status.BackgroundTransparency = 1
+    unlock_status.Font = Enum.Font.Gotham
+    unlock_status.TextSize = 12
+    unlock_status.Parent = frame
+
+    _G.LoL.status_label = status
+    _G.LoL.unlock_label = unlock_status
+end
+
+create_mobile_gui()
+
+-- ==================== Ragebot Core ====================
+local function get_players()
+    local list = {}
+    local players = game:GetService("Players")
+    local local_player = players.LocalPlayer
+    local workspace = game:GetService("Workspace")
+    
+    for _, plr in pairs(players:GetPlayers()) do
+        if plr ~= local_player and plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+            local char = plr.Character
+            local head = char:FindFirstChild("Head")
+            local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if head and (torso or root) then
+                table.insert(list, {
+                    player = plr,
+                    character = char,
+                    head = head,
+                    torso = torso or root,
+                    root = root,
+                    health = plr.Character.Humanoid.Health,
+                    distance = (head.Position - local_player.Character.Head.Position).Magnitude
+                })
+            end
+        end
+    end
+    return list
+end
+
+local function get_target(players)
+    if #players == 0 then return nil end
+    
+    local priority = _G.LoL.target_priority or "closest"
+    local selected = nil
+    
+    if priority == "closest" then
+        local min_dist = math.huge
+        for _, p in ipairs(players) do
+            if p.distance < min_dist then
+                min_dist = p.distance
+                selected = p
+            end
+        end
+    elseif priority == "lowest_hp" then
+        local min_hp = math.huge
+        for _, p in ipairs(players) do
+            if p.health < min_hp then
+                min_hp = p.health
+                selected = p
+            end
+        end
+    elseif priority == "highest_hp" then
+        local max_hp = 0
+        for _, p in ipairs(players) do
+            if p.health > max_hp then
+                max_hp = p.health
+                selected = p
+            end
+        end
+    end
+    
+    return selected
+end
+
+local function get_hitbox(target)
+    local hitbox_type = _G.LoL.hitbox or "head"
+    if hitbox_type == "head" then return target.head
+    elseif hitbox_type == "torso" then return target.torso
+    elseif hitbox_type == "random" then
+        local choices = {target.head, target.torso, target.root}
+        return choices[math.random(1, 3)]
+    end
+    return target.head
+end
+
+local function smooth_lerp(current, target, alpha)
+    return current + (target - current) * alpha
+end
+
+-- ==================== Silent Aim + Ragebot ====================
+local function ragebot_update()
+    if not _G.LoL.enabled then return end
+    
+    local local_player = game:GetService("Players").LocalPlayer
+    if not local_player or not local_player.Character or not local_player.Character:FindFirstChild("Humanoid") then
+        if _G.LoL.status_label then _G.LoL.status_label.Text = "Status: Dead" end
+        return
+    end
+    
+    local camera = game:GetService("Workspace").CurrentCamera
+    if not camera then return end
+    
+    local players = get_players()
+    if #players == 0 then
+        if _G.LoL.status_label then _G.LoL.status_label.Text = "Status: No enemies" end
+        return
+    end
+    
+    local target = get_target(players)
+    if not target then
+        if _G.LoL.status_label then _G.LoL.status_label.Text = "Status: No target" end
+        return
+    end
+    
+    -- Check FOV
+    local target_pos = get_hitbox(target).Position
+    local screen_pos, on_screen = camera:WorldToViewportPoint(target_pos)
+    if not on_screen then
+        if _G.LoL.status_label then _G.LoL.status_label.Text = "Status: Target off-screen" end
+        return
+    end
+    
+    local screen_center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    local fov_actual = (Vector2.new(screen_pos.X, screen_pos.Y) - screen_center).Magnitude
+    local fov_limit = _G.LoL.fov or 90
+    
+    if fov_actual > fov_limit then
+        if _G.LoL.status_label then _G.LoL.status_label.Text = "Status: Out of FOV" end
+        return
+    end
+    
+    -- Apply aim (silent / rage)
+    local smooth = _G.LoL.smooth or 0.3
+    
+    if _G.LoL.rage then
+        -- Rage mode: instant snap with no smooth
+        camera.CFrame = CFrame.new(camera.CFrame.Position, target_pos)
+    else
+        -- Silent aim with smooth
+        local current_look = camera.CFrame
+        local target_cframe = CFrame.new(camera.CFrame.Position, target_pos)
+        local lerped = current_look:Lerp(target_cframe, smooth)
+        camera.CFrame = lerped
+    end
+    
+    -- Triggerbot (auto-shoot when on target)
+    if _G.LoL.triggerbot then
+        local mouse = game:GetService("UserInputService")
+        if mouse then
+            -- Simulate mouse click via VirtualInputManager
+            local vim = game:GetService("VirtualInputManager")
+            if vim then
+                vim:SendMouseButtonEvent(0, 0, true, Enum.UserInputType.MouseButton1, false)
+                task.wait(0.01)
+                vim:SendMouseButtonEvent(0, 0, false, Enum.UserInputType.MouseButton1, false)
+            end
+        end
+    end
+    
+    -- Anti-aim (jitter)
+    if _G.LoL.antiaim then
+        local jitter = math.sin(tick() * 10) * 0.5
+        local current = camera.CFrame
+        local angles = current:ToEulerAnglesYXZ()
+        angles = Vector3.new(angles.X + jitter, angles.Y + jitter * 0.3, angles.Z)
+        camera.CFrame = CFrame.new(current.Position) * CFrame.Angles(angles.X, angles.Y, angles.Z)
+    end
+    
+    if _G.LoL.status_label then
+        _G.LoL.status_label.Text = "Status: Locked " .. target.player.Name
+    end
+end
+
+-- ==================== Unlock All Skins (Rivals) ====================
+local function unlock_all_skins_roblox()
+    if not _G.LoL.unlock then return end
+    
+    local success = false
+    local game_service = game
+    if not game_service then 
+        if _G.LoL.unlock_label then _G.LoL.unlock_label.Text = "Unlock: No game" end
+        return 
+    end
+    
+    local players = game_service:GetService("Players")
+    local local_player = players.LocalPlayer
+    if not local_player then 
+        if _G.LoL.unlock_label then _G.LoL.unlock_label.Text = "Unlock: No player" end
+        return 
+    end
+    
+    local replicated_storage = game_service:GetService("ReplicatedStorage")
+    
+    local remote_event = replicated_storage:FindFirstChild("UnlockSkin") or 
+                         replicated_storage:FindFirstChild("PurchaseSkin") or
+                         replicated_storage:FindFirstChild("RemoteEvent")
+    
+    if remote_event and remote_event:IsA("RemoteEvent") then
+        for skin_id = 1, 200 do
+            pcall(function()
+                remote_event:FireServer(skin_id, "Unlock")
+            end)
+        end
+        success = true
+    end
+    
+    if getgc then
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" then
+                pcall(function()
+                    if v.SkinData then
+                        for k, data in pairs(v) do
+                            if type(data) == "table" and data.Owned ~= nil then
+                                data.Owned = true
+                            end
+                        end
+                    end
+                    if v.Inventory then
+                        for _, item in pairs(v.Inventory) do
+                            if type(item) == "table" and item.unlocked ~= nil then
+                                item.unlocked = true
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+        success = true
+    end
+    
+    local leaderstats = local_player:FindFirstChild("leaderstats")
+    if leaderstats then
+        local skins_unlocked = leaderstats:FindFirstChild("SkinsUnlocked")
+        if skins_unlocked then
+            skins_unlocked.Value = 9999
+        end
+        success = true
+    end
+    
+    if success then
+        if _G.LoL.unlock_label then _G.LoL.unlock_label.Text = "Unlock: All skins done" end
+    else
+        if _G.LoL.unlock_label then _G.LoL.unlock_label.Text = "Unlock: No method" end
+    end
+end
+
+-- ==================== Main Loop ====================
+local run_service = game:GetService("RunService")
+local last_unlock = 0
+
+run_service.RenderStepped:Connect(function()
+    pcall(ragebot_update)
+    
+    if tick() - last_unlock > 5 then
+        last_unlock = tick()
+        pcall(unlock_all_skins_roblox)
+    end
+end)
+
+-- Delta executor optimization
+if is_delta then
+    print("[LoL 1.11] Delta Ragebot mode active")
+    -- Use lower settings for mobile performance
+    _G.LoL.smooth = 0.5
+end
+
+print("[LoL 1.11] Ragebot + Unlock All Skins loaded")
